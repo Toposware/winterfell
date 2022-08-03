@@ -83,10 +83,12 @@ impl<'a, A: Air, E: FieldElement<BaseField = A::BaseField>> ConstraintEvaluator<
             "extended trace length is not consistent with evaluation domain"
         );
 
-        // build a list of constraint divisors; currently, all transition constraints have the same
-        // divisor which we put at the front of the list; boundary constraint divisors are appended
-        // after that
-        let mut divisors = vec![self.transition_constraints.divisor().clone()];
+        // Build a list of constraint divisors; all transition constraints have the same
+        // divisor which we put at the front of the list; any custom divisor is considered during evaluation
+        // of the constraints by multiplying with default_divisor/custom_divisor each constraint.
+        // This avoids doing unecessary inversions per divisor.
+        // Currently this only consider the default divisor and the boundary constraints divisors
+        let mut divisors = vec![self.transition_constraints.divisors()[0].clone()];
         divisors.append(&mut self.boundary_constraints.get_divisors());
 
         // allocate space for constraint evaluations; when we are in debug mode, we also allocate
@@ -281,8 +283,16 @@ impl<'a, A: Air, E: FieldElement<BaseField = A::BaseField>> ConstraintEvaluator<
 
         // merge transition constraint evaluations into a single value and return it;
         // we can do this here because all transition constraints have the same divisor.
+        // TODO [divisors]: change this for cosets
         self.transition_constraints.main_constraints().iter().fold(E::ZERO, |result, group| {
-            result + group.merge_evaluations(evaluations, x)
+            let custom_divisor = self.transition_constraints.divisors()[group.divisor_index()].clone();
+            let default_divisor = self.transition_constraints.divisors()[0].clone();
+
+            let (evaluation, divisor_correction) = group.merge_evaluations::<E::BaseField,E::BaseField>(evaluations, x, custom_divisor, default_divisor);
+            for idx in group.indexes().iter() {
+               evaluations[*idx] *= divisor_correction
+            }
+            result + evaluation * E::from(divisor_correction)
         })
     }
 
@@ -318,8 +328,12 @@ impl<'a, A: Air, E: FieldElement<BaseField = A::BaseField>> ConstraintEvaluator<
 
         // merge transition constraint evaluations into a single value and return it;
         // we can do this here because all transition constraints have the same divisor.
+        // TODO [divisors]: change this for cosets
         self.transition_constraints.aux_constraints().iter().fold(E::ZERO, |result, group| {
-            result + group.merge_evaluations::<E::BaseField, E>(evaluations, x)
+            let custom_divisor = self.transition_constraints.divisors()[group.divisor_index()].clone();
+            let default_divisor = self.transition_constraints.divisors()[0].clone();
+            let (evaluation, divisor_correction) = group.merge_evaluations::<E::BaseField, E>(evaluations, x, custom_divisor, default_divisor);
+            result + evaluation * E::from(divisor_correction)
         })
     }
 

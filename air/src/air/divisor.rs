@@ -55,6 +55,9 @@ impl<B: StarkField> ConstraintDivisor<B> {
     /// The above divisor specifies that transition constraints must hold on all steps of the
     /// execution trace except for the last $k$ steps.
     pub fn from_transition(trace_length: usize, num_exemptions: usize) -> Self {
+        // TODO: [Divisors] make this more flexible: allow divisor in subgroups/cosets and excemptions
+        //       that are not necessarilly on the end. Doing for arbitrary sets should result in a linear
+        //       verifier on the number of excemptions.
         assert!(
             num_exemptions > 0,
             "invalid number of transition exemptions: must be greater than zero"
@@ -149,6 +152,23 @@ impl<B: StarkField> ConstraintDivisor<B> {
     pub fn evaluate_exemptions_at<E: FieldElement<BaseField = B>>(&self, x: E) -> E {
         self.exemptions
             .iter()
+            .fold(E::ONE, |r, &e| r * (x - E::from(e)))
+    }
+
+    /// Evaluates the denominator of this custom divisor (the exemption points) at the provided `x`
+    /// coordinate exept the default exemption (these will be computed once for all divisors).
+
+    // TODO: [divisors] we should change this. This should evaluate the denominator of a polynomial function
+    // of the form Z(X)/D(X) expressing the divisor. A second function should be added to evaluate Z(X).
+    pub fn evaluate_custom_exemptions_at<E: FieldElement<BaseField = B>>(
+        &self,
+        x: E,
+        default_exemptions: usize,
+    ) -> E {
+        self.exemptions
+            .iter()
+            .by_ref()
+            .take(self.exemptions.len() - default_exemptions)
             .fold(E::ONE, |r, &e| r * (x - E::from(e)))
     }
 }

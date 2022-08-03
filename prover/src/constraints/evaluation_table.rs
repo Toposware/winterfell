@@ -197,6 +197,8 @@ impl<E: FieldElement> ConstraintEvaluationTable<E> {
         // evaluate transition constraint divisor (which is assumed to be the first one in the
         // divisor list) over the constraint evaluation domain. this is used later to compute
         // actual degrees of transition constraint evaluations.
+
+        // TODO: [divisors] Currently, this only evaluates the default divisor. Fix this
         let div_values = evaluate_divisor::<E::BaseField>(
             &self.divisors[0],
             self.num_rows(),
@@ -437,12 +439,20 @@ fn build_transition_constraint_degrees<E: FieldElement>(
 ) -> Vec<usize> {
     let mut result = Vec::new();
 
-    for degree in constraints.main_constraint_degrees() {
-        result.push(degree.get_evaluation_degree(trace_length) - constraints.divisor().degree())
+    for (idx, degree) in constraints.main_constraint_degrees().iter().enumerate() {
+        let divisor_idx = constraints.main_constraints_divisors()[idx];
+        result.push(
+            degree.get_evaluation_degree(trace_length)
+                - constraints.divisors()[divisor_idx].degree(),
+        )
     }
 
-    for degree in constraints.aux_constraint_degrees() {
-        result.push(degree.get_evaluation_degree(trace_length) - constraints.divisor().degree())
+    for (idx, degree) in constraints.aux_constraint_degrees().iter().enumerate() {
+        let divisor_idx = constraints.aux_constraints_divisors()[idx];
+        result.push(
+            degree.get_evaluation_degree(trace_length)
+                - constraints.divisors()[divisor_idx].degree(),
+        )
     }
 
     result
